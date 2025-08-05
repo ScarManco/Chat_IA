@@ -228,6 +228,48 @@ class LocalDatabase {
     await localforage.setItem('readings', readings);
     return newReading;
   }
+
+  async saveReadings(readings: Reading[]): Promise<void> {
+    await localforage.setItem('readings', readings);
+  }
+
+  async updateAntenna(id: string, updates: Partial<Omit<Antenna, 'id' | 'created_at'>>): Promise<Antenna> {
+    const antennas = await this.getAntennas();
+    const index = antennas.findIndex(antenna => antenna.id === id);
+    
+    if (index === -1) {
+      throw new Error('Antenna not found');
+    }
+
+    antennas[index] = { ...antennas[index], ...updates };
+    await localforage.setItem('antennas', antennas);
+    return antennas[index];
+  }
+
+  async deleteAntenna(id: string): Promise<void> {
+    const antennas = await this.getAntennas();
+    const filteredAntennas = antennas.filter(antenna => antenna.id !== id);
+    await localforage.setItem('antennas', filteredAntennas);
+  }
+
+  async updateSensor(id: string, updates: Partial<Omit<Sensor, 'id' | 'created_at'>>): Promise<Sensor> {
+    const sensors = await this.getSensors();
+    const index = sensors.findIndex(sensor => sensor.id === id);
+    
+    if (index === -1) {
+      throw new Error('Sensor not found');
+    }
+
+    sensors[index] = { ...sensors[index], ...updates };
+    await localforage.setItem('sensors', sensors);
+    return sensors[index];
+  }
+
+  async deleteSensor(id: string): Promise<void> {
+    const sensors = await this.getSensors();
+    const filteredSensors = sensors.filter(sensor => sensor.id !== id);
+    await localforage.setItem('sensors', filteredSensors);
+  }
 }
 
 export const db = new LocalDatabase();

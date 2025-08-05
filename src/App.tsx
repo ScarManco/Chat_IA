@@ -4,6 +4,9 @@ import { Toaster } from 'react-hot-toast';
 import { AuthForm } from './components/auth/AuthForm';
 import { Layout } from './components/layout/Layout';
 import { LocationsPage } from './pages/locations/LocationsPage';
+import { AntennasPage } from './pages/antennas/AntennasPage';
+import { SensorsPage } from './pages/sensors/SensorsPage';
+import { ReadingsPage } from './pages/readings/ReadingsPage';
 import { auth } from './lib/auth';
 
 function App() {
@@ -42,9 +45,9 @@ function App() {
             element={isAuthenticated ? <Layout /> : <Navigate to="/" replace />}
           >
             <Route path="/locations" element={<LocationsPage />} />
-            <Route path="/antennas" element={<div>Antennas</div>} />
-            <Route path="/sensors" element={<div>Sensors</div>} />
-            <Route path="/readings" element={<div>Readings</div>} />
+            <Route path="/antennas" element={<AntennasPage />} />
+            <Route path="/sensors" element={<SensorsPage />} />
+            <Route path="/readings" element={<ReadingsPage />} />
           </Route>
         </Routes>
       </div>
