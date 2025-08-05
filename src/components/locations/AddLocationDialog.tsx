@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Plus } from 'lucide-react';
 import { database } from '@/lib/database';
 import toast from 'react-hot-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 type AddLocationDialogProps = {
   onLocationAdded: () => void;
@@ -16,6 +17,10 @@ export function AddLocationDialog({ onLocationAdded }: AddLocationDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
       await db.createLocation(name, description);
 
       toast.success('Location added successfully');
@@ -26,6 +31,7 @@ export function AddLocationDialog({ onLocationAdded }: AddLocationDialogProps) {
       toast.error('Error adding location');
       console.error('Error:', error);
     } finally {
+      setIsLoading(false);
       toast.error(error instanceof Error ? error.message : 'Failed to add location');
     }
   };
