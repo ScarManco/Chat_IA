@@ -11,7 +11,7 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChange((state) => {
-      setIsAuthenticated(state.isAuthenticated);
+      setIsAuthenticated(state !== null);
     });
     
     return unsubscribe;
