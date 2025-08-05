@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { db, Location } from '@/lib/database';
+import { AddLocationDialog } from '@/components/locations/AddLocationDialog';
+import toast from 'react-hot-toast';
+import 'leaflet/dist/leaflet.css';
+
 export function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
 
   useEffect(() => {
-    db.init().then(() => {
-      fetchLocations();
-    });
+    fetchLocations();
   }, []);
 
   const fetchLocations = async () => {
@@ -43,6 +47,9 @@ export function LocationsPage() {
                 className="p-4 border rounded-lg hover:border-indigo-500 cursor-pointer transition-colors"
               >
                 <h3 className="font-medium">{location.name}</h3>
+                {location.description && (
+                  <p className="text-sm text-gray-600 mt-1">{location.description}</p>
+                )}
               </div>
             ))}
           </div>
