@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { db } from '@/lib/database';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Plus } from 'lucide-react';
@@ -16,11 +16,7 @@ export function AddLocationDialog({ onLocationAdded }: AddLocationDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      await database.createLocation(name);
+      await db.createLocation(name, description);
 
       toast.success('Location added successfully');
       setOpen(false);
@@ -30,7 +26,7 @@ export function AddLocationDialog({ onLocationAdded }: AddLocationDialogProps) {
       toast.error('Error adding location');
       console.error('Error:', error);
     } finally {
-      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Failed to add location');
     }
   };
 

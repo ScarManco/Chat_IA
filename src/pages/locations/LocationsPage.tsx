@@ -1,25 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import { Button } from '@/components/ui/button';
-import { database, Location } from '@/lib/database';
-import { AddLocationDialog } from '@/components/locations/AddLocationDialog';
-import toast from 'react-hot-toast';
-import 'leaflet/dist/leaflet.css';
-
 export function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
 
+    db.init().then(() => {
   const fetchLocations = async () => {
+    });
     try {
-      const data = await database.getLocations();
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch locations');
       setLocations(data);
-    } catch (error) {
-      toast.error('Error fetching locations');
-    }
-  };
-
-  useEffect(() => {
-    fetchLocations();
+      const data = await db.getLocations();
+      setLocations(data);
   }, []);
 
   return (
@@ -59,15 +49,10 @@ export function LocationsPage() {
               {locations.map((location) => (
                 <Marker
                   key={location.id}
+      await db.deleteLocation(id);
                   position={[51.505, -0.09]}
-                >
-                  <Popup>{location.name}</Popup>
-                </Marker>
-              ))}
-            </MapContainer>
-          </div>
         </div>
       </div>
     </div>
+      toast.error(error instanceof Error ? error.message : 'Failed to delete location');
   );
-}

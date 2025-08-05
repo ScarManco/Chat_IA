@@ -25,17 +25,17 @@ export function AuthForm() {
 
     try {
       if (isSignUp) {
-        const { error } = await auth.signUp(email, password);
+        const { user, error } = await auth.signUp(email, password);
         if (error) throw error;
         toast.success('Account created successfully');
       } else {
-        const { error } = await auth.signIn(email, password);
+        const { user, error } = await auth.signIn(email, password);
         if (error) throw error;
         toast.success('Successfully logged in');
       }
     } catch (error: any) {
       console.error('Auth error:', error);
-      toast.error(error || 'An error occurred during authentication');
+      toast.error(error instanceof Error ? error.message : 'An error occurred during authentication');
     } finally {
       setIsLoading(false);
     }

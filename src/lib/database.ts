@@ -1,10 +1,25 @@
-import { supabase } from './supabase';
+import localforage from 'localforage';
+import bcrypt from 'bcryptjs';
 
-// Database interface types
+// Configure localforage
+localforage.config({
+  name: 'RFIDInventoryDB',
+  version: 1.0,
+  storeName: 'rfid_data'
+});
+
+export interface User {
+  id: string;
+  email: string;
+  password_hash: string;
+  role: 'admin' | 'user';
+  created_at: string;
+}
+
 export interface Location {
   id: string;
   name: string;
-  map_url?: string;
+  description: string;
   created_at: string;
 }
 
@@ -12,168 +27,207 @@ export interface Antenna {
   id: string;
   location_id: string;
   name: string;
-  position_x: number;
-  position_y: number;
+  ip_address: string;
+  port: number;
+  status: 'active' | 'inactive';
   created_at: string;
 }
 
 export interface Sensor {
   id: string;
-  location_id: string;
+  antenna_id: string;
   name: string;
   type: string;
-  position_x: number;
-  position_y: number;
+  status: 'active' | 'inactive';
   created_at: string;
 }
 
 export interface Reading {
   id: string;
-  antenna_id: string;
   sensor_id: string;
-  value: any;
-  created_at: string;
+  tag_id: string;
+  timestamp: string;
+  signal_strength: number;
+  data: any;
 }
 
-export interface User {
-  id: string;
-  email: string;
-  created_at: string;
-}
+class LocalDatabase {
+  private initialized = false;
 
-class DatabaseManager {
+  async init() {
+    if (this.initialized) return;
+
+    // Initialize with default admin user if no users exist
+    const users = await this.getUsers();
+    if (users.length === 0) {
+      const adminUser: User = {
+        id: 'admin-1',
+        email: 'admin@rfid.com',
+        password_hash: await bcrypt.hash('admin123', 10),
+        role: 'admin',
+        created_at: new Date().toISOString()
+      };
+      await localforage.setItem('users', [adminUser]);
+    }
+
+    this.initialized = true;
+  }
+
+  // User methods
+  async getUsers(): Promise<User[]> {
+    return (await localforage.getItem('users')) || [];
+  }
+
+  async getUserByEmail(email: string): Promise<User | null> {
+    const users = await this.getUsers();
+    return users.find(user => user.email === email) || null;
+  }
+
+  async createUser(email: string, password: string, role: 'admin' | 'user' = 'user'): Promise<User> {
+    const users = await this.getUsers();
+    const existingUser = users.find(user => user.email === email);
+    
+    if (existingUser) {
+      throw new Error('User already exists');
+    }
+
+    const newUser: User = {
+      id: `user-${Date.now()}`,
+      email,
+      password_hash: await bcrypt.hash(password, 10),
+      role,
+      created_at: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    await localforage.setItem('users', users);
+    return newUser;
+  }
+
+  async verifyPassword(email: string, password: string): Promise<User | null> {
+    const user = await this.getUserByEmail(email);
+    if (!user) return null;
+
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    return isValid ? user : null;
+  }
+
   // Location methods
   async getLocations(): Promise<Location[]> {
-    const { data, error } = await supabase
-      .from('locations')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    return (await localforage.getItem('locations')) || [];
   }
 
-  async createLocation(name: string, mapUrl?: string): Promise<Location> {
-    const { data, error } = await supabase
-      .from('locations')
-      .insert({ name, map_url: mapUrl })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+  async createLocation(name: string, description: string): Promise<Location> {
+    const locations = await this.getLocations();
+    const newLocation: Location = {
+      id: `location-${Date.now()}`,
+      name,
+      description,
+      created_at: new Date().toISOString()
+    };
+
+    locations.push(newLocation);
+    await localforage.setItem('locations', locations);
+    return newLocation;
   }
 
-  async deleteLocation(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('locations')
-      .delete()
-      .eq('id', id);
+  async updateLocation(id: string, updates: Partial<Omit<Location, 'id' | 'created_at'>>): Promise<Location> {
+    const locations = await this.getLocations();
+    const index = locations.findIndex(loc => loc.id === id);
     
-    if (error) throw error;
-    return true;
+    if (index === -1) {
+      throw new Error('Location not found');
+    }
+
+    locations[index] = { ...locations[index], ...updates };
+    await localforage.setItem('locations', locations);
+    return locations[index];
+  }
+
+  async deleteLocation(id: string): Promise<void> {
+    const locations = await this.getLocations();
+    const filteredLocations = locations.filter(loc => loc.id !== id);
+    await localforage.setItem('locations', filteredLocations);
   }
 
   // Antenna methods
-  async getAntennas(locationId?: string): Promise<Antenna[]> {
-    let query = supabase
-      .from('antennas')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (locationId) {
-      query = query.eq('location_id', locationId);
-    }
-    
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+  async getAntennas(): Promise<Antenna[]> {
+    return (await localforage.getItem('antennas')) || [];
   }
 
-  async createAntenna(locationId: string, name: string, positionX: number, positionY: number): Promise<Antenna> {
-    const { data, error } = await supabase
-      .from('antennas')
-      .insert({
-        location_id: locationId,
-        name,
-        position_x: positionX,
-        position_y: positionY
-      })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+  async getAntennasByLocation(locationId: string): Promise<Antenna[]> {
+    const antennas = await this.getAntennas();
+    return antennas.filter(antenna => antenna.location_id === locationId);
+  }
+
+  async createAntenna(locationId: string, name: string, ipAddress: string, port: number): Promise<Antenna> {
+    const antennas = await this.getAntennas();
+    const newAntenna: Antenna = {
+      id: `antenna-${Date.now()}`,
+      location_id: locationId,
+      name,
+      ip_address: ipAddress,
+      port,
+      status: 'active',
+      created_at: new Date().toISOString()
+    };
+
+    antennas.push(newAntenna);
+    await localforage.setItem('antennas', antennas);
+    return newAntenna;
   }
 
   // Sensor methods
-  async getSensors(locationId?: string): Promise<Sensor[]> {
-    let query = supabase
-      .from('sensors')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (locationId) {
-      query = query.eq('location_id', locationId);
-    }
-    
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+  async getSensors(): Promise<Sensor[]> {
+    return (await localforage.getItem('sensors')) || [];
   }
 
-  async createSensor(locationId: string, name: string, type: string, positionX: number, positionY: number): Promise<Sensor> {
-    const { data, error } = await supabase
-      .from('sensors')
-      .insert({
-        location_id: locationId,
-        name,
-        type,
-        position_x: positionX,
-        position_y: positionY
-      })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+  async getSensorsByAntenna(antennaId: string): Promise<Sensor[]> {
+    const sensors = await this.getSensors();
+    return sensors.filter(sensor => sensor.antenna_id === antennaId);
+  }
+
+  async createSensor(antennaId: string, name: string, type: string): Promise<Sensor> {
+    const sensors = await this.getSensors();
+    const newSensor: Sensor = {
+      id: `sensor-${Date.now()}`,
+      antenna_id: antennaId,
+      name,
+      type,
+      status: 'active',
+      created_at: new Date().toISOString()
+    };
+
+    sensors.push(newSensor);
+    await localforage.setItem('sensors', sensors);
+    return newSensor;
   }
 
   // Reading methods
-  async getReadings(antennaId?: string, sensorId?: string): Promise<Reading[]> {
-    let query = supabase
-      .from('readings')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (antennaId && sensorId) {
-      query = query.eq('antenna_id', antennaId).eq('sensor_id', sensorId);
-    } else if (antennaId) {
-      query = query.eq('antenna_id', antennaId);
-    } else if (sensorId) {
-      query = query.eq('sensor_id', sensorId);
-    }
-    
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+  async getReadings(): Promise<Reading[]> {
+    return (await localforage.getItem('readings')) || [];
   }
 
-  async createReading(antennaId: string, sensorId: string, value: any): Promise<Reading> {
-    const { data, error } = await supabase
-      .from('readings')
-      .insert({
-        antenna_id: antennaId,
-        sensor_id: sensorId,
-        value
-      })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+  async getReadingsBySensor(sensorId: string): Promise<Reading[]> {
+    const readings = await this.getReadings();
+    return readings.filter(reading => reading.sensor_id === sensorId);
+  }
+
+  async createReading(sensorId: string, tagId: string, signalStrength: number, data: any): Promise<Reading> {
+    const readings = await this.getReadings();
+    const newReading: Reading = {
+      id: `reading-${Date.now()}`,
+      sensor_id: sensorId,
+      tag_id: tagId,
+      timestamp: new Date().toISOString(),
+      signal_strength: signalStrength,
+      data
+    };
+
+    readings.push(newReading);
+    await localforage.setItem('readings', readings);
+    return newReading;
   }
 }
 
-// Create singleton instance
-export const database = new DatabaseManager();
+export const db = new LocalDatabase();
