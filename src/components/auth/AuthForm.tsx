@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { auth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Radio } from 'lucide-react';
@@ -25,26 +25,17 @@ export function AuthForm() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: window.location.origin
-          }
-        });
+        const { error } = await auth.signUp(email, password);
         if (error) throw error;
-        toast.success('Check your email to confirm your account');
+        toast.success('Account created successfully');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error } = await auth.signIn(email, password);
         if (error) throw error;
         toast.success('Successfully logged in');
       }
     } catch (error: any) {
       console.error('Auth error:', error);
-      toast.error(error.message || 'An error occurred during authentication');
+      toast.error(error || 'An error occurred during authentication');
     } finally {
       setIsLoading(false);
     }

@@ -1,12 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { MapPin, Radio, Cpu, Database, LogOut } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { auth } from '@/lib/auth';
 import toast from 'react-hot-toast';
 
 export function Sidebar() {
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await auth.signOut();
     if (error) {
       toast.error('Error logging out');
     }

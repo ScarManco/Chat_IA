@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Plus } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { database } from '@/lib/database';
 import toast from 'react-hot-toast';
 
 type AddLocationDialogProps = {
@@ -20,11 +20,7 @@ export function AddLocationDialog({ onLocationAdded }: AddLocationDialogProps) {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('locations')
-        .insert([{ name }]);
-
-      if (error) throw error;
+      database.createLocation(name);
 
       toast.success('Location added successfully');
       setOpen(false);

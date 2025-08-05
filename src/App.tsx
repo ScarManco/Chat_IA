@@ -4,15 +4,17 @@ import { Toaster } from 'react-hot-toast';
 import { AuthForm } from './components/auth/AuthForm';
 import { Layout } from './components/layout/Layout';
 import { LocationsPage } from './pages/locations/LocationsPage';
-import { supabase } from './lib/supabase';
+import { auth } from './lib/auth';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session);
+    const unsubscribe = auth.onAuthStateChange((state) => {
+      setIsAuthenticated(state.isAuthenticated);
     });
+    
+    return unsubscribe;
   }, []);
 
   if (isAuthenticated === null) {

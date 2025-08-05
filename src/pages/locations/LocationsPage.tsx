@@ -1,31 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { database, Location } from '@/lib/database';
 import { AddLocationDialog } from '@/components/locations/AddLocationDialog';
 import toast from 'react-hot-toast';
 import 'leaflet/dist/leaflet.css';
-
-type Location = {
-  id: string;
-  name: string;
-  map_url: string;
-};
 
 export function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
 
   const fetchLocations = async () => {
-    const { data, error } = await supabase
-      .from('locations')
-      .select('*');
-
-    if (error) {
+    try {
+      const data = database.getLocations();
+      setLocations(data);
+    } catch (error) {
       toast.error('Error fetching locations');
-      return;
     }
-
-    setLocations(data || []);
   };
 
   useEffect(() => {
