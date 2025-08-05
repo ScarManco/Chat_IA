@@ -2,15 +2,29 @@ import React, { useEffect, useState } from 'react';
 export function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
 
+  useEffect(() => {
     db.init().then(() => {
-  const fetchLocations = async () => {
+      fetchLocations();
     });
+  }, []);
+
+  const fetchLocations = async () => {
     try {
-      toast.error(error instanceof Error ? error.message : 'Failed to fetch locations');
-      setLocations(data);
       const data = await db.getLocations();
       setLocations(data);
-  }, []);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch locations');
+    }
+  };
+
+  const deleteLocation = async (id: string) => {
+    try {
+      await db.deleteLocation(id);
+      fetchLocations();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete location');
+    }
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -49,10 +63,13 @@ export function LocationsPage() {
               {locations.map((location) => (
                 <Marker
                   key={location.id}
-      await db.deleteLocation(id);
                   position={[51.505, -0.09]}
+                />
+              ))}
+            </MapContainer>
+          </div>
         </div>
       </div>
     </div>
-      toast.error(error instanceof Error ? error.message : 'Failed to delete location');
   );
+}
