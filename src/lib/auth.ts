@@ -1,4 +1,5 @@
-import { database, User } from './database';
+import { supabase } from './supabase';
+import type { User } from '@supabase/supabase-js';
 
 export interface AuthState {
   user: User | null;
@@ -6,73 +7,87 @@ export interface AuthState {
 }
 
 class AuthManager {
-  private currentUser: User | null = null;
   private listeners: ((state: AuthState) => void)[] = [];
 
   constructor() {
-    // Check for stored session
-    const storedUser = localStorage.getItem('rfid_user');
-    if (storedUser) {
-      try {
-        this.currentUser = JSON.parse(storedUser);
-      } catch (error) {
-        localStorage.removeItem('rfid_user');
-      }
-    }
+    // Listen to auth state changes
+    supabase.auth.onAuthStateChange((event, session) => {
+      this.notifyListeners({
+        user: session?.user || null,
+        isAuthenticated: !!session?.user
+      });
+    });
   }
 
   async signIn(email: string, password: string): Promise<{ user: User | null; error: string | null }> {
     try {
-      const user = database.authenticateUser(email, password);
-      if (user) {
-        this.currentUser = user;
-        localStorage.setItem('rfid_user', JSON.stringify(user));
-        this.notifyListeners();
-        return { user, error: null };
-      } else {
-        return { user: null, error: 'Invalid email or password' };
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        return { user: null, error: error.message };
       }
-    } catch (error) {
-      return { user: null, error: 'Authentication failed' };
+
+      return { user: data.user, error: null };
+    } catch (error: any) {
+      return { user: null, error: error.message || 'Authentication failed' };
     }
   }
 
   async signUp(email: string, password: string): Promise<{ user: User | null; error: string | null }> {
     try {
-      const user = database.createUser(email, password);
-      this.currentUser = user;
-      localStorage.setItem('rfid_user', JSON.stringify(user));
-      this.notifyListeners();
-      return { user, error: null };
-    } catch (error: any) {
-      if (error.message.includes('UNIQUE constraint failed')) {
-        return { user: null, error: 'User with this email already exists' };
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+
+      if (error) {
+        return { user: null, error: error.message };
       }
-      return { user: null, error: 'Registration failed' };
+
+      return { user: data.user, error: null };
+    } catch (error: any) {
+      return { user: null, error: error.message || 'Registration failed' };
     }
   }
 
   async signOut(): Promise<{ error: string | null }> {
-    this.currentUser = null;
-    localStorage.removeItem('rfid_user');
-    this.notifyListeners();
-    return { error: null };
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        return { error: error.message };
+      }
+      return { error: null };
+    } catch (error: any) {
+      return { error: error.message || 'Sign out failed' };
+    }
   }
 
-  getCurrentUser(): User | null {
-    return this.currentUser;
+  async getCurrentUser(): Promise<User | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user;
+    } catch (error) {
+      return null;
+    }
   }
 
-  isAuthenticated(): boolean {
-    return this.currentUser !== null;
+  async isAuthenticated(): Promise<boolean> {
+    const user = await this.getCurrentUser();
+    return !!user;
   }
 
   onAuthStateChange(callback: (state: AuthState) => void): () => void {
     this.listeners.push(callback);
+    
     // Call immediately with current state
-    callback({
-      user: this.currentUser,
-      isAuthenticated: this.isAuthenticated()
+    this.getCurrentUser().then(user => {
+      callback({
+        user,
+        isAuthenticated: !!user
+      });
     });
     
     // Return unsubscribe function
@@ -84,11 +99,7 @@ class AuthManager {
     };
   }
 
-  private notifyListeners() {
-    const state: AuthState = {
-      user: this.currentUser,
-      isAuthenticated: this.isAuthenticated()
-    };
+  private notifyListeners(state: AuthState) {
     this.listeners.forEach(listener => listener(state));
   }
 }

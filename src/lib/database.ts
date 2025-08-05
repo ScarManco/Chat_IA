@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { supabase } from './supabase';
 
 // Database interface types
 export interface Location {
@@ -38,207 +38,140 @@ export interface Reading {
 export interface User {
   id: string;
   email: string;
-  password_hash: string;
   created_at: string;
 }
 
 class DatabaseManager {
-  private db: Database.Database;
-
-  constructor() {
-    this.db = new Database('rfid_system.db');
-    this.initializeTables();
-  }
-
-  private initializeTables() {
-    // Create users table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create locations table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS locations (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        map_url TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create antennas table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS antennas (
-        id TEXT PRIMARY KEY,
-        location_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        position_x REAL NOT NULL,
-        position_y REAL NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create sensors table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS sensors (
-        id TEXT PRIMARY KEY,
-        location_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        position_x REAL NOT NULL,
-        position_y REAL NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create readings table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS readings (
-        id TEXT PRIMARY KEY,
-        antenna_id TEXT NOT NULL,
-        sensor_id TEXT NOT NULL,
-        value TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (antenna_id) REFERENCES antennas (id) ON DELETE CASCADE,
-        FOREIGN KEY (sensor_id) REFERENCES sensors (id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create default admin user
-    this.createDefaultUser();
-  }
-
-  private createDefaultUser() {
-    const existingUser = this.db.prepare('SELECT id FROM users WHERE email = ?').get('admin@rfid.com');
-    if (!existingUser) {
-      const userId = this.generateId();
-      this.db.prepare(`
-        INSERT INTO users (id, email, password_hash)
-        VALUES (?, ?, ?)
-      `).run(userId, 'admin@rfid.com', 'admin123'); // In production, this should be properly hashed
-    }
-  }
-
-  private generateId(): string {
-    return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-  }
-
-  // User methods
-  authenticateUser(email: string, password: string): User | null {
-    const user = this.db.prepare('SELECT * FROM users WHERE email = ? AND password_hash = ?').get(email, password) as User;
-    return user || null;
-  }
-
-  createUser(email: string, password: string): User {
-    const id = this.generateId();
-    const stmt = this.db.prepare(`
-      INSERT INTO users (id, email, password_hash)
-      VALUES (?, ?, ?)
-    `);
-    stmt.run(id, email, password);
-    return { id, email, password_hash: password, created_at: new Date().toISOString() };
-  }
-
   // Location methods
-  getLocations(): Location[] {
-    return this.db.prepare('SELECT * FROM locations ORDER BY created_at DESC').all() as Location[];
+  async getLocations(): Promise<Location[]> {
+    const { data, error } = await supabase
+      .from('locations')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
   }
 
-  createLocation(name: string, mapUrl?: string): Location {
-    const id = this.generateId();
-    const stmt = this.db.prepare(`
-      INSERT INTO locations (id, name, map_url)
-      VALUES (?, ?, ?)
-    `);
-    stmt.run(id, name, mapUrl || null);
-    return { id, name, map_url: mapUrl, created_at: new Date().toISOString() };
+  async createLocation(name: string, mapUrl?: string): Promise<Location> {
+    const { data, error } = await supabase
+      .from('locations')
+      .insert({ name, map_url: mapUrl })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
-  deleteLocation(id: string): boolean {
-    const result = this.db.prepare('DELETE FROM locations WHERE id = ?').run(id);
-    return result.changes > 0;
+  async deleteLocation(id: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('locations')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return true;
   }
 
   // Antenna methods
-  getAntennas(locationId?: string): Antenna[] {
+  async getAntennas(locationId?: string): Promise<Antenna[]> {
+    let query = supabase
+      .from('antennas')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
     if (locationId) {
-      return this.db.prepare('SELECT * FROM antennas WHERE location_id = ? ORDER BY created_at DESC').all(locationId) as Antenna[];
+      query = query.eq('location_id', locationId);
     }
-    return this.db.prepare('SELECT * FROM antennas ORDER BY created_at DESC').all() as Antenna[];
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
   }
 
-  createAntenna(locationId: string, name: string, positionX: number, positionY: number): Antenna {
-    const id = this.generateId();
-    const stmt = this.db.prepare(`
-      INSERT INTO antennas (id, location_id, name, position_x, position_y)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    stmt.run(id, locationId, name, positionX, positionY);
-    return { id, location_id: locationId, name, position_x: positionX, position_y: positionY, created_at: new Date().toISOString() };
+  async createAntenna(locationId: string, name: string, positionX: number, positionY: number): Promise<Antenna> {
+    const { data, error } = await supabase
+      .from('antennas')
+      .insert({
+        location_id: locationId,
+        name,
+        position_x: positionX,
+        position_y: positionY
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
   // Sensor methods
-  getSensors(locationId?: string): Sensor[] {
+  async getSensors(locationId?: string): Promise<Sensor[]> {
+    let query = supabase
+      .from('sensors')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
     if (locationId) {
-      return this.db.prepare('SELECT * FROM sensors WHERE location_id = ? ORDER BY created_at DESC').all(locationId) as Sensor[];
+      query = query.eq('location_id', locationId);
     }
-    return this.db.prepare('SELECT * FROM sensors ORDER BY created_at DESC').all() as Sensor[];
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
   }
 
-  createSensor(locationId: string, name: string, type: string, positionX: number, positionY: number): Sensor {
-    const id = this.generateId();
-    const stmt = this.db.prepare(`
-      INSERT INTO sensors (id, location_id, name, type, position_x, position_y)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(id, locationId, name, type, positionX, positionY);
-    return { id, location_id: locationId, name, type, position_x: positionX, position_y: positionY, created_at: new Date().toISOString() };
+  async createSensor(locationId: string, name: string, type: string, positionX: number, positionY: number): Promise<Sensor> {
+    const { data, error } = await supabase
+      .from('sensors')
+      .insert({
+        location_id: locationId,
+        name,
+        type,
+        position_x: positionX,
+        position_y: positionY
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
   // Reading methods
-  getReadings(antennaId?: string, sensorId?: string): Reading[] {
-    let query = 'SELECT * FROM readings';
-    const params: string[] = [];
+  async getReadings(antennaId?: string, sensorId?: string): Promise<Reading[]> {
+    let query = supabase
+      .from('readings')
+      .select('*')
+      .order('created_at', { ascending: false });
     
     if (antennaId && sensorId) {
-      query += ' WHERE antenna_id = ? AND sensor_id = ?';
-      params.push(antennaId, sensorId);
+      query = query.eq('antenna_id', antennaId).eq('sensor_id', sensorId);
     } else if (antennaId) {
-      query += ' WHERE antenna_id = ?';
-      params.push(antennaId);
+      query = query.eq('antenna_id', antennaId);
     } else if (sensorId) {
-      query += ' WHERE sensor_id = ?';
-      params.push(sensorId);
+      query = query.eq('sensor_id', sensorId);
     }
     
-    query += ' ORDER BY created_at DESC';
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  async createReading(antennaId: string, sensorId: string, value: any): Promise<Reading> {
+    const { data, error } = await supabase
+      .from('readings')
+      .insert({
+        antenna_id: antennaId,
+        sensor_id: sensorId,
+        value
+      })
+      .select()
+      .single();
     
-    const readings = this.db.prepare(query).all(...params) as Reading[];
-    return readings.map(reading => ({
-      ...reading,
-      value: JSON.parse(reading.value as string)
-    }));
-  }
-
-  createReading(antennaId: string, sensorId: string, value: any): Reading {
-    const id = this.generateId();
-    const stmt = this.db.prepare(`
-      INSERT INTO readings (id, antenna_id, sensor_id, value)
-      VALUES (?, ?, ?, ?)
-    `);
-    stmt.run(id, antennaId, sensorId, JSON.stringify(value));
-    return { id, antenna_id: antennaId, sensor_id: sensorId, value, created_at: new Date().toISOString() };
-  }
-
-  close() {
-    this.db.close();
+    if (error) throw error;
+    return data;
   }
 }
 

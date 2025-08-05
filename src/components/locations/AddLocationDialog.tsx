@@ -20,7 +20,7 @@ export function AddLocationDialog({ onLocationAdded }: AddLocationDialogProps) {
     setIsLoading(true);
 
     try {
-      database.createLocation(name);
+      await database.createLocation(name);
 
       toast.success('Location added successfully');
       setOpen(false);

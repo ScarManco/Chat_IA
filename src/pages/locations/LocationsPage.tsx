@@ -11,7 +11,7 @@ export function LocationsPage() {
 
   const fetchLocations = async () => {
     try {
-      const data = database.getLocations();
+      const data = await database.getLocations();
       setLocations(data);
     } catch (error) {
       toast.error('Error fetching locations');
